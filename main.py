@@ -1,64 +1,42 @@
+# main.py
 import cv2
+from gesture_detector import GestureDetector
+from mouse_controller import MouseController
+from config import CAMERA_INDEX, FRAME_WIDTH, FRAME_HEIGHT
 import pyautogui
-from hand_controller import HandController
 
 def main():
-    controller = HandController()
-    
-    try:
-        cap = cv2.VideoCapture(int(controller.config['Settings']['camera_id']))
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, controller.frame_width)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, controller.frame_height)
-    except Exception as e:
-        print(f"Camera initialization failed: {e}")
+    cap = cv2.VideoCapture(CAMERA_INDEX)
+    if not cap.isOpened():
+        print("Error: Could not access the camera.")
         return
 
-    pyautogui.FAILSAFE = False
-    last_drag_state = False
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
 
-    while cap.isOpened():
-        success, frame = cap.read()
-        if not success:
-            continue
+    detector = GestureDetector()
+    controller = MouseController()
+    screen_width, screen_height = pyautogui.size()
 
-        frame = cv2.flip(frame, 1)
-        results = controller.process_frame(frame)
-        gestures = controller.get_gestures(results)
-        
-        if gestures['mouse_pos']:
-            # Mouse movement
-            pyautogui.moveTo(*gestures['mouse_pos'])
-            
-            # Click handling
-            if gestures['double_click']:
-                pyautogui.doubleClick()
-            elif gestures['left_click']:
-                pyautogui.click()
-                
-            if gestures['right_click']:
-                pyautogui.rightClick()
-                
-            # Drag handling
-            if gestures['drag'] and not last_drag_state:
-                pyautogui.mouseDown()
-                last_drag_state = True
-            elif not gestures['drag'] and last_drag_state:
-                pyautogui.mouseUp()
-                last_drag_state = False
-                
-            # Scrolling
-            if gestures['scroll']:
-                pyautogui.scroll(gestures['scroll'])
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("Error: Failed to capture frame.")
+            break
 
-        # Visual feedback
-        frame = controller.draw_feedback(frame, gestures)
-        cv2.imshow('Air Mouse Controller', frame)
-        
+        frame = cv2.flip(frame, 1)  # Mirror the frame
+        gestures = detector.detect_gestures(frame)
+        if gestures:
+            index_tip = gestures['index_tip']
+            controller.move_mouse(index_tip[0], index_tip[1], screen_width, screen_height)
+            controller.click_if_gesture(gestures['landmarks'])
+
+        cv2.imshow('Gesture Mouse Control', frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
     cap.release()
     cv2.destroyAllWindows()
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
