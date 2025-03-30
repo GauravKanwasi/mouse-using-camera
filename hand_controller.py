@@ -18,18 +18,28 @@ class HandController:
             min_tracking_confidence=0.5
         )
         
+        # Screen dimensions
         self.screen_w, self.screen_h = pyautogui.size()
-        self.prev_x, self.prev_y = pyautogui.position()
-        self.last_click_time = 0
-        self.drag_mode = False
         
-        # Initialize parameters from config
-        self.frame_width = int(self.config['Settings']['frame_width'])
-        self.frame_height = int(self.config['Settings']['frame_height'])
+        # Camera settings
+        self.camera_width = int(self.config['Settings']['camera_width'])
+        self.camera_height = int(self.config['Settings']['camera_height'])
+        
+        # Window settings
+        self.window_width = int(self.config['Settings']['window_width'])
+        self.window_height = int(self.config['Settings']['window_height'])
+        
+        # Control parameters
         self.smoothing = float(self.config['Settings']['smoothing_factor'])
         self.click_thresh = float(self.config['Settings']['click_threshold'])
         self.scroll_sens = int(self.config['Settings']['scroll_sensitivity'])
         self.double_click_delay = float(self.config['Settings']['double_click_delay'])
+        self.scroll_activation_thresh = float(self.config['Settings']['scroll_activation_thresh'])
+        
+        # State variables
+        self.prev_x, self.prev_y = pyautogui.position()
+        self.last_click_time = 0
+        self.drag_mode = False
 
     def process_frame(self, frame):
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -50,13 +60,14 @@ class HandController:
                 hand = results.multi_hand_landmarks[0]
                 landmarks = hand.landmark
 
-                # Get key landmarks
-                index = self._get_landmark_coords(landmarks, self.mp_hands.HandLandmark.INDEX_FINGER_TIP)
-                thumb = self._get_landmark_coords(landmarks, self.mp_hands.HandLandmark.THUMB_TIP)
-                middle = self._get_landmark_coords(landmarks, self.mp_hands.HandLandmark.MIDDLE_FINGER_TIP)
-                wrist = self._get_landmark_coords(landmarks, self.mp_hands.HandLandmark.WRIST)
+                # Get key points
+                index = self._get_landmark(landmarks, self.mp_hands.HandLandmark.INDEX_FINGER_TIP)
+                thumb = self._get_landmark(landmarks, self.mp_hands.HandLandmark.THUMB_TIP)
+                middle = self._get_landmark(landmarks, self.mp_hands.HandLandmark.MIDDLE_FINGER_TIP)
+                pinky = self._get_landmark(landmarks, self.mp_hands.HandLandmark.PINKY_TIP)
+                wrist = self._get_landmark(landmarks, self.mp_hands.HandLandmark.WRIST)
 
-                # Mouse position with smoothing
+                # Smooth cursor movement
                 mouse_x = index['x'] * self.screen_w
                 mouse_y = index['y'] * self.screen_h
                 smoothed_x = self.prev_x + (mouse_x - self.prev_x) * self.smoothing
@@ -65,8 +76,8 @@ class HandController:
                 self.prev_x, self.prev_y = smoothed_x, smoothed_y
 
                 # Click detection
-                dist_index_thumb = self._calculate_distance(index, thumb)
-                dist_middle_thumb = self._calculate_distance(middle, thumb)
+                dist_index_thumb = self._distance(index, thumb)
+                dist_middle_thumb = self._distance(middle, thumb)
                 
                 gestures['left_click'] = dist_index_thumb < self.click_thresh
                 gestures['right_click'] = dist_middle_thumb < self.click_thresh
@@ -79,61 +90,51 @@ class HandController:
                     self.last_click_time = current_time
 
                 # Scroll detection
-                scroll_base = self._calculate_distance(wrist, index)
-                if scroll_base > 0.1:
+                if self._distance(index, pinky) > self.scroll_activation_thresh:
                     scroll_value = (wrist['y'] - index['y']) * self.scroll_sens
                     gestures['scroll'] = int(scroll_value * 100)
 
                 # Drag detection
-                if dist_index_thumb < float(self.config['Settings']['drag_threshold']):
-                    gestures['drag'] = True
+                gestures['drag'] = dist_index_thumb < float(self.config['Settings']['drag_threshold'])
 
             except Exception as e:
                 print(f"Gesture error: {e}")
 
         return gestures
 
-    def _get_landmark_coords(self, landmarks, landmark_id):
-        return {
-            'x': landmarks[landmark_id].x,
-            'y': landmarks[landmark_id].y,
-            'z': landmarks[landmark_id].z
-        }
+    def _get_landmark(self, landmarks, landmark_id):
+        return {'x': landmarks[landmark_id].x, 'y': landmarks[landmark_id].y}
 
-    def _calculate_distance(self, p1, p2):
-        return np.sqrt((p1['x']-p2['x'])**2 + (p1['y']-p2['y'])**2)
+    def _distance(self, p1, p2):
+        return np.hypot(p1['x']-p2['x'], p1['y']-p2['y'])
 
     def draw_feedback(self, frame, gestures):
         try:
             h, w, _ = frame.shape
             
-            # Draw cursor
+            # Convert screen coordinates to window coordinates
             if gestures['mouse_pos']:
-                screen_x, screen_y = gestures['mouse_pos']
-                frame_x = int(screen_x * w / self.screen_w)
-                frame_y = int(screen_y * h / self.screen_h)
-                cv2.circle(frame, (frame_x, frame_y), 15, (0, 255, 0), 2)
+                win_x = int(gestures['mouse_pos'][0] * self.window_width / self.screen_w)
+                win_y = int(gestures['mouse_pos'][1] * self.window_height / self.screen_h)
+                cv2.circle(frame, (win_x, win_y), 10, (0, 255, 0), 2)
 
             # Status text
-            y_offset = 40
-            colors = {
-                'left_click': (0, 255, 0),
-                'right_click': (0, 0, 255),
-                'double_click': (255, 255, 0),
-                'scroll': (255, 0, 255),
-                'drag': (0, 255, 255)
-            }
+            y_pos = 40
+            status = [
+                ("LEFT CLICK", gestures['left_click'], (0, 255, 0)),
+                ("RIGHT CLICK", gestures['right_click'], (0, 0, 255)),
+                ("DOUBLE CLICK", gestures['double_click'], (255, 255, 0)),
+                (f"SCROLL: {gestures['scroll']}", gestures['scroll'] != 0, (255, 0, 255)),
+                ("DRAG", gestures['drag'], (0, 255, 255))
+            ]
             
-            for action, color in colors.items():
-                if gestures.get(action, False):
-                    text = action.replace('_', ' ').title()
-                    if action == 'scroll' and gestures['scroll'] != 0:
-                        text += f": {gestures['scroll']}"
-                    cv2.putText(frame, text, (20, y_offset), 
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
-                    y_offset += 40
+            for text, condition, color in status:
+                if condition:
+                    cv2.putText(frame, text, (20, y_pos), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+                    y_pos += 35
 
         except Exception as e:
-            print(f"Feedback error: {e}")
+            print(f"Drawing error: {e}")
             
         return frame
