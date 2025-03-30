@@ -5,16 +5,18 @@ from hand_controller import HandController
 def main():
     controller = HandController()
     
-    try:
-        cap = cv2.VideoCapture(int(controller.config['Settings']['camera_id']))
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, controller.frame_width)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, controller.frame_height)
-    except Exception as e:
-        print(f"Camera initialization failed: {e}")
-        return
-
+    # Initialize camera
+    cap = cv2.VideoCapture(int(controller.config['Settings']['camera_id']))
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, controller.camera_width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, controller.camera_height)
+    
+    # Create resizable window
+    cv2.namedWindow('Air Mouse Controller', cv2.WINDOW_NORMAL)
+    cv2.resizeWindow('Air Mouse Controller', 
+                    controller.window_width, 
+                    controller.window_height)
+    
     pyautogui.FAILSAFE = False
-    last_drag_state = False
 
     while cap.isOpened():
         success, frame = cap.read()
@@ -26,7 +28,7 @@ def main():
         gestures = controller.get_gestures(results)
         
         if gestures['mouse_pos']:
-            # Mouse movement
+            # Mouse control
             pyautogui.moveTo(*gestures['mouse_pos'])
             
             # Click handling
@@ -39,12 +41,12 @@ def main():
                 pyautogui.rightClick()
                 
             # Drag handling
-            if gestures['drag'] and not last_drag_state:
-                pyautogui.mouseDown()
-                last_drag_state = True
-            elif not gestures['drag'] and last_drag_state:
-                pyautogui.mouseUp()
-                last_drag_state = False
+            if gestures['drag'] != controller.drag_mode:
+                if gestures['drag']:
+                    pyautogui.mouseDown()
+                else:
+                    pyautogui.mouseUp()
+                controller.drag_mode = gestures['drag']
                 
             # Scrolling
             if gestures['scroll']:
@@ -52,6 +54,8 @@ def main():
 
         # Visual feedback
         frame = controller.draw_feedback(frame, gestures)
+        
+        # Display in resizable window
         cv2.imshow('Air Mouse Controller', frame)
         
         if cv2.waitKey(1) & 0xFF == ord('q'):
