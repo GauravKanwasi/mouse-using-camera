@@ -3,12 +3,12 @@
 A Python application that enables mouse control using hand gestures via webcam. Currently in active development but fully functional with core features implemented.
 
 ## Features ✨
-- **Cursor Movement**: Control mouse pointer with index finger
-- **Left/Right Click**: Pinch thumb-index or thumb-middle fingers
-- **Drag & Drop**: Sustain thumb-index pinch while moving
-- **Vertical Scroll**: Move open hand up/down
-- **Double Click**: Quick consecutive thumb-index pinches
-- **Configurable Settings**: Adjust sensitivity via `config.ini`
+- **Cursor Movement**: Control mouse pointer with index finger [[1]]
+- **Left/Right Click**: Pinch thumb-index or thumb-middle fingers [[6]]
+- **Drag & Drop**: Sustain thumb-index pinch while moving [[9]]
+- **Vertical Scroll**: Move open hand up/down [[3]]
+- **Double Click**: Quick consecutive thumb-index pinches [[8]]
+- **Configurable Settings**: Adjust sensitivity via `config.ini` or environment variables [[5]]
 
 ## Installation 🛠️
 
@@ -20,7 +20,7 @@ A Python application that enables mouse control using hand gestures via webcam. 
 ### Setup
 ```bash
 # Clone repository
-git clone https://github.com/GauravKanwasi/mouse-using-camera.git
+git clone https://github.com/GauravKanwasi/mouse-using-camera.git    
 cd mouse-using-camera
 
 # Create virtual environment
