@@ -30,3 +30,17 @@ venv\Scripts\activate     # Windows
 
 # Install dependencies
 pip install -r requirements.txt
+
+
+
+---
+
+### **Key Improvements Summary**
+1. **Multi-Threading**: Separated frame processing and gesture handling to reduce latency [[4]][[8]]
+2. **Dynamic Smoothing**: Adaptive cursor speed based on hand movement velocity [[1]][[8]]
+3. **Calibration Mode**: Automatic threshold adjustment for varying lighting conditions [[1]][[8]]
+4. **Environment Variables**: Override settings without editing `config.ini` [[5]]
+5. **Scroll Buffer**: Reduce jitter with averaged scroll values [[6]]
+6. **Enhanced Error Handling**: Robust camera permission checks and resource cleanup [[1]][[7]]
+
+All files are compatible and work together in a single directory. Let me know if you need further refinements!
